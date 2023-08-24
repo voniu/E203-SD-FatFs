@@ -12,7 +12,7 @@
 - [x] f_open
 - [x] f_close
 - [x] f_read
-- [ ] f_write
+- [x] f_write
 - [x] f_mount
 - [x] f_close
 
@@ -27,15 +27,15 @@
 - [x] sd_init
 - [x] sd_sendCmd
 - [x] sd_readSingleBlock
-- [ ] sd_writeSingleBlock
-- [ ] sd_readMultiBlock
-- [ ] sd_writeMultiBlock
-- [ ] sd_stopTransmission
+- [x] sd_writeSingleBlock
+- [x] sd_readMultiBlock
+- [x] sd_writeMultiBlock
+- [x] sd_stopTransmission
 - [x] sd_readRes1 & sd_readRes1b & sd_readRes3_7
 
 #### SPI Driver
 - [x] spi_send8 & spi_send16 & spi_send32
-- [ ] spi_receive8
+- [x] spi_receive8
 
 ### 使用要求
 1. 不支持 SD v1.x 卡，只支持 SDHC、SDXC 卡
@@ -45,7 +45,7 @@
 ### 如何使用
 #### 硬件连接
 ![sd_schem](./doc/img/sd_schem.png)
-<center>sd_schem form http://rjhcoding.com</center>
+<center>sd_schem image from http://rjhcoding.com</center>
 
 | GPIO A [0:31] | SD Card |
 | ------------- | ------- |
@@ -66,13 +66,12 @@ SD 卡引脚定义详见 [SD MicroSD Card pinout](https://www.electroniccircuits
 > 函数定义见：[FatFs - Generic FAT Filesystem Module](http://elm-chan.org/fsw/ff/00index_e.html)
 
 1. 将 src 目录下除 `demo.c` 外文件拷贝至你的工程目录，在 `main.c` 中书写以下代码：
-2. 将 GPIOA 的 [8:11] 引脚配置为 SPI1：`gpio_iof_config(GPIOA, (IOF_SPI_MASK | ANY_MASK));`
-    - 注意：将引脚配置为 SPI1 的操作不可逆，程序后续不可将 [8:11] 作为 IO 引脚配置使用，详见 e203 sdk 中 [gpio_iof_config](https://github.com/riscv-mcu/hbird-sdk/blob/master/SoC/hbirdv2/Common/Source/Drivers/hbirdv2_gpio.c#L4) 源码
-3. 挂载 SD 卡： `f_mount`
-4. 打开指定文件： `f_open`
-5. 读取文件数据： `f_read`
-6. 关闭文件：`f_close`
-7. 卸载 SD 卡：`f_unmount`
+2. 挂载 SD 卡： `f_mount`
+   - 注意：这里会将引脚配置为 SPI1，程序后续不可将 [8:11] 作为 IO 引脚配置使用，详见 e203 sdk 中 [gpio_iof_config](https://github.com/riscv-mcu/hbird-sdk/blob/master/SoC/hbirdv2/Common/Source/Drivers/hbirdv2_gpio.c#L4) 源码
+3. 打开指定文件： `f_open`
+4. 读取文件数据： `f_read`
+5. 关闭文件：`f_close`
+6. 卸载 SD 卡：`f_unmount`
 
 ### 开发平台
 ZedBoard + Vivado + NucleiStudio + hbird_sdk@0.1.4

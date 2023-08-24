@@ -23,6 +23,8 @@
 #define CMD18_CRC 0x00
 #define CMD24 24
 #define CMD24_CRC 0x00
+#define CMD25 25
+#define CMD25_CRC 0x00
 
 #define PARAM_ERROR(X) X & 0b01000000
 #define ADDR_ERROR(X) X & 0b00100000
@@ -73,12 +75,16 @@
 
 #define SD_START_TOKEN 0xFE
 #define SD_ERROR_TOKEN 0x00
+#define SD_START_TOKEN_FOR_MULTI_WR 0xFC
+#define SD_STOP_TRAN_TOKEN 0xFD // different with CMD12
 
 #define SD_DATA_ACCEPTED 0x05
 #define SD_DATA_REJECTED_CRC 0x0B
 #define SD_DATA_REJECTED_WRITE 0x0D
 
 #define SD_BLOCK_LEN 512
+
+#define ntohl(x) (0xff000000 & x << 24) | (0x00ff0000 & x << 8) | (0x0000ff00 & x >> 8) | (0x000000ff & x >> 24)
 
 void gpio_config();
 void sd_powerUpSeq(SPI_TypeDef *spi);
@@ -96,6 +102,7 @@ void sd_sendIfCond(SPI_TypeDef *spi, uint8_t *res);
 void sd_printR1(uint8_t res);
 void sd_printR3(uint8_t *res);
 void sd_printR7(uint8_t *res);
+void sd_printR1b(uint8_t res);
 void sd_readOCR(SPI_TypeDef *spi, uint8_t *res);
 uint8_t sd_sendApp(SPI_TypeDef *spi);
 uint8_t sd_sendOpCond(SPI_TypeDef *spi);

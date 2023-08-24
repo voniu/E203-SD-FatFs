@@ -97,11 +97,11 @@ uint8_t sd_goIdleState(SPI_TypeDef *spi)
 void sd_sendCmd(SPI_TypeDef *spi, uint8_t cmd, uint32_t arg, uint8_t crc)
 {
     // transmit command to sd card
-    spi_send8(spi, cmd | CMD0);
+    spi_send8(spi, cmd | 0x40);
     // transmit argument
     spi_send32(spi, arg);
     // transmit crc
-    spi_send8(spi, crc | 0x00);
+    spi_send8(spi, crc | 0x01);
 }
 
 void spi_send8(SPI_TypeDef *spi, uint8_t data)
@@ -170,15 +170,15 @@ uint8_t sd_readRes1b(SPI_TypeDef *spi)
 {
     spi_send8(spi, 0xFF);
 
-    uint8_t i = 0, res;
+    uint16_t i = 0, res;
     do
     {
-        if (i++ > 8)
+        if (i++ > 100)
         {
             break;
         }
         res = spi_receive8(spi);
-    } while (res == 0x00 || res == 0xFF);
+    } while (res == 0x00); // mean busy
 
     return res;
 }
@@ -247,6 +247,18 @@ void sd_printR1(uint8_t res)
         printf("\tErase Reset Error\r\n");
     if (IN_IDLE(res))
         printf("\tIn Idle State\r\n");
+}
+
+void sd_printR1b(uint8_t res)
+{
+    if (res == 0)
+    {
+        printf("Warning: card is busy\r\n");
+    }
+    else
+    {
+        printf("Ready for the next command\r\n");
+    }
 }
 
 void sd_printR7(uint8_t *res)
@@ -377,6 +389,9 @@ uint8_t sd_readSingleBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t *buf, uint8_
             }
         }
 
+        // set token to card response
+        *token = read;
+
         // if response token is 0xFE
         if (read == 0xFE)
         {
@@ -388,9 +403,6 @@ uint8_t sd_readSingleBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t *buf, uint8_
             spi_receive8(spi);
             spi_receive8(spi);
         }
-
-        // set token to card response
-        *token = read;
     }
 
     spi_send8(spi, 0xFF);
@@ -418,7 +430,7 @@ void sd_printDataErrToken(uint8_t token)
 *******************************************************************************/
 uint8_t sd_writeSingleBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t *buf, uint8_t *token)
 {
-    uint16_t readAttempts;
+    uint16_t writeAttempts;
     uint8_t read, res;
 
     // set token to none
@@ -443,8 +455,8 @@ uint8_t sd_writeSingleBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t *buf, uint8
             spi_send8(spi, buf[i]);
 
         // wait for a response (timeout = 250ms)
-        readAttempts = 0;
-        while (++readAttempts != SD_MAX_WRITE_ATTEMPTS)
+        writeAttempts = 0;
+        while (++writeAttempts != SD_MAX_WRITE_ATTEMPTS)
         {
             if ((read = spi_receive8(spi)) != 0xFF)
             {
@@ -460,10 +472,10 @@ uint8_t sd_writeSingleBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t *buf, uint8
             *token = 0x05;
 
             // wait for write to finish (timeout = 250ms)
-            readAttempts = 0;
+            writeAttempts = 0;
             while (spi_receive8(spi) == 0x00)
             {
-                if (++readAttempts == SD_MAX_WRITE_ATTEMPTS)
+                if (++writeAttempts == SD_MAX_WRITE_ATTEMPTS)
                 {
                     *token = 0x00;
                     break;
@@ -505,6 +517,9 @@ uint8_t sd_readMultiBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t count, uint8_
                 }
             }
 
+            // set token to card response
+            *token = read;
+
             // if response token is 0xFE
             if (read == 0xFE)
             {
@@ -516,15 +531,16 @@ uint8_t sd_readMultiBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t count, uint8_
                 spi_receive8(spi);
                 spi_receive8(spi);
             }
-
-            // set token to card response
-            *token = read;
+            else
+            {
+                break; // error msg in token
+            }
         }
         sd_stopTransmission(spi);
     }
     else
     {
-        printf("read multi error!\r\n");
+        // do nothing, error msg in res1
     }
 
     spi_send8(spi, 0xFF);
@@ -534,6 +550,98 @@ uint8_t sd_readMultiBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t count, uint8_
 
 uint8_t sd_writeMultiBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t count, uint8_t *buf, uint8_t *token)
 {
+    uint16_t writeAttempts;
+    uint8_t read, res;
+
+    // set token to none
+    *token = 0xFF;
+
+    spi_send8(spi, 0xFF);
+
+    // send CMD25
+    sd_sendCmd(spi, CMD25, addr, CMD25_CRC);
+
+    // read response
+    res = sd_readRes1(spi);
+
+    // if no error
+    if (res == SD_READY)
+    {
+
+        for (uint8_t index = 0; index < count; index++)
+        {
+            // send start token
+            spi_send8(spi, SD_START_TOKEN_FOR_MULTI_WR);
+
+            // write buffer to card
+            for (uint16_t i = 0; i < SD_BLOCK_LEN; i++)
+            {
+                if (SD_BLOCK_LEN - i < 4)
+                {
+                    spi_send8(spi, *buf);
+                    buf++;
+                }
+                else
+                {
+                    uint32_t data = ntohl(*((uint32_t *)buf));
+                    spi_send32(spi, data);
+                    buf += 4;
+                    i += 3;
+                }
+            }
+
+            // wait for a response (timeout = 250ms)
+            writeAttempts = 0;
+            while (++writeAttempts != SD_MAX_WRITE_ATTEMPTS)
+            {
+                read = spi_receive8(spi);
+                if (read != 0xFF)
+                {
+                    *token = 0xFF;
+                    break;
+                }
+            }
+
+            // if data accepted
+            if ((read & 0x1F) == 0x05)
+            {
+                // set token to data accepted
+                *token = 0x05;
+
+                // wait for write to finish (timeout = 250ms)
+                writeAttempts = 0;
+                while (spi_receive8(spi) == 0x00)
+                {
+                    if (++writeAttempts == SD_MAX_WRITE_ATTEMPTS)
+                    {
+                        *token = 0x00;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                break; // error msg in read
+            }
+        }
+
+        // send stop token
+        spi_send8(spi, SD_STOP_TRAN_TOKEN);
+        // wait for write to finish (timeout = 250ms)
+        writeAttempts = 0;
+        while (spi_receive8(spi) != 0xFF)
+        {
+            if (++writeAttempts == SD_MAX_WRITE_ATTEMPTS)
+            {
+                *token = 0x00;
+                break;
+            }
+        }
+    }
+
+    spi_send8(spi, 0xFF);
+
+    return res;
 }
 
 void sd_stopTransmission(SPI_TypeDef *spi)
@@ -541,6 +649,5 @@ void sd_stopTransmission(SPI_TypeDef *spi)
     uint8_t res1b;
     sd_sendCmd(spi, CMD12, 0x00000000, CMD12_CRC);
     res1b = sd_readRes1b(spi);
-    sd_printR1(res1b);
     spi_send8(spi, 0xFF);
 }

@@ -12,7 +12,7 @@
 #include "sdcard.h"
 
 /* Definitions of physical drive number for each drive */
-#define DEV_MMC 0 /* Map MMC/SD card to physical drive 1 */
+#define DEV_MMC 0 /* Map MMC/SD card to physical drive 0 */
 
 /*-----------------------------------------------------------------------*/
 /* Get Drive Status                                                      */
@@ -93,19 +93,13 @@ DRESULT disk_read(
 	{
 
 	case DEV_MMC:
-		// translate the arguments here
-		for (int i = 0; i < count; i++)
+		result = sd_readMultiBlock(SPI1, sector, count, (uint8_t *)buff, &token);
+		if (result >= 0x02 || token != 0xFE)
 		{
-			result = sd_readSingleBlock(SPI1, sector, buff + (512 * i), &token);
-			if (result >= 0x02 || token != 0xFE)
-			{
-				return RES_ERROR;
-			}
+			return RES_ERROR;
 		}
 
-		// translate the reslut code here
 		res = RES_OK;
-
 		return res;
 	}
 
@@ -126,17 +120,18 @@ DRESULT disk_write(
 )
 {
 	DRESULT res;
-	int result;
+	uint8_t token, result;
 
 	switch (pdrv)
 	{
 	case DEV_MMC:
-		// translate the arguments here
+		result = sd_writeMultiBlock(SPI1, sector, count, (uint8_t *)buff, &token);
+		if (result >= 0x02 || token != 0x05)
+		{
+			return RES_ERROR;
+		}
 
-		// result = MMC_disk_write(buff, sector, count);
-
-		// translate the reslut code here
-
+		res = RES_OK;
 		return res;
 	}
 
