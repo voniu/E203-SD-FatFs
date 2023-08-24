@@ -3,55 +3,48 @@
 #include "hbird_sdk_hal.h"
 #include <sdcard.h>
 #include <ff.h>
+
 int main(void)
 {
     printf("> sd card test start\r\n");
 
-    FATFS fs;                       // FATFS文件系统结构体对象
-    FIL fil;                        // FIL文件结构体对象
-    FRESULT card;                   // 文件操作结果结构体对象
-    int fnum;                       // Number of bytes read/write
-    uint8_t ReadBuffer[1024] = {0}; // 读缓冲区
+    FATFS fs;          /* Work area (filesystem object) for logical drives */
+    FIL fsrc, fdst;    /* File objects */
+    BYTE buffer[4096]; /* File copy buffer */
+    FRESULT fr;        /* FatFs function common result code */
+    UINT br, bw;       /* File read/write count */
 
+    /* Give work areas to each logical drive */
     f_mount(&fs, "", 0);
 
-    // 数据文件
-    // card = f_open(&fil, "data.bin", FA_READ);
+    /* Open source file on the drive 1 */
+    fr = f_open(&fsrc, "text.txt", FA_READ);
+    if (fr)
+        return (int)fr;
 
-    // 文本文件
-    card = f_open(&fil, "text.txt", FA_READ);
+    /* Create destination file on the drive 0 */
+    fr = f_open(&fdst, "copy.txt", FA_WRITE | FA_CREATE_ALWAYS);
+    if (fr)
+        return (int)fr;
 
-    if (card == FR_OK)
+    /* Copy source to destination */
+    do
     {
-        printf("> open file success\r\n");
-        card = f_read(&fil, ReadBuffer, sizeof(ReadBuffer), &fnum);
-        if (card == FR_OK)
-        {
-            printf("> data size: %dB\r\n", fnum);
+        fr = f_read(&fsrc, buffer, sizeof buffer, &br); /* Read a chunk of data from the source file */
+        printf("read data length: %d\r\n", br);
+        if (br == 0)
+            break;                            /* error or eof */
+        fr = f_write(&fdst, buffer, br, &bw); /* Write it to the destination file */
+        printf("fr: %d,write data length: %d\r\n", fr, bw);
+        if (bw < br)
+            break; /* error or disk full */
+    } while (0);
 
-            // 数据输出
-            // printf("> data(hex): ");
-            // for (long i = 0; i < fnum; i++)
-            // {
-            //     printf("%02X", ReadBuffer[i]);
-            // }
-            // printf("\r\n");
+    /* Close open files */
+    f_close(&fsrc);
+    f_close(&fdst);
 
-            // 文本输出
-            printf("> data(string): %s\r\n", ReadBuffer);
-        }
-        else
-        {
-            printf("> read data failed: (%d)", card);
-        }
-    }
-    else
-    {
-        printf("> open file failed\r\n");
-        return (int)card;
-    }
-
-    f_close(&fil);
+    /* Unregister work area prior to discard it */
     f_unmount("");
 
     printf("> sd card test end\r\n");
