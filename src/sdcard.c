@@ -136,9 +136,22 @@ void spi_send32(SPI_TypeDef *spi, uint32_t data)
     };
 }
 
+uint8_t spi_sendAndReceive8(SPI_TypeDef *spi, uint8_t data)
+{
+    uint32_t wdata = ((uint32_t)data) << 24;
+    spi_set_datalen(spi, 8);
+    spi_write_fifo(spi, &wdata, 8);
+    spi_start_transaction(spi, SPI_CMD_RD_WR, SPI_CSN0);
+    while ((spi_get_status(spi) & 0xFFFF) != 1)
+    {
+    };
+    uint32_t fifo = 0;
+    spi_read_fifo(spi, &fifo, 8);
+    return fifo & 0xFF;
+}
+
 uint8_t spi_receive8(SPI_TypeDef *spi)
 {
-    // TODO: MOSI = 0b1
     spi_set_datalen(spi, 8);
     spi_start_transaction(spi, SPI_CMD_RD, SPI_CSN0);
     while ((spi_get_status(spi) & 0xFFFF) != 1)
@@ -160,7 +173,7 @@ uint8_t sd_readRes1(SPI_TypeDef *spi)
         {
             break;
         }
-        res = spi_receive8(spi);
+        res = spi_sendAndReceive8(spi, 0xFF);
     } while (res == 0xFF);
 
     return res;
@@ -177,7 +190,7 @@ uint8_t sd_readRes1b(SPI_TypeDef *spi)
         {
             break;
         }
-        res = spi_receive8(spi);
+        res = spi_sendAndReceive8(spi, 0xFF);
     } while (res == 0x00); // mean busy
 
     return res;
@@ -193,7 +206,7 @@ void sd_readRes3_7(SPI_TypeDef *spi, uint8_t *res)
 
     for (int i = 1; i < 5; i++)
     {
-        res[i] = spi_receive8(spi);
+        res[i] = spi_sendAndReceive8(spi, 0xFF);
     }
 }
 
@@ -383,7 +396,7 @@ uint8_t sd_readSingleBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t *buf, uint8_
         readAttempts = 0;
         while (++readAttempts != SD_MAX_READ_ATTEMPTS)
         {
-            if ((read = spi_receive8(spi)) != 0xFF)
+            if ((read = spi_sendAndReceive8(spi, 0xFF)) != 0xFF)
             {
                 break;
             }
@@ -397,11 +410,11 @@ uint8_t sd_readSingleBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t *buf, uint8_
         {
             // read 512 byte block
             for (uint16_t i = 0; i < 512; i++)
-                *buf++ = spi_receive8(spi);
+                *buf++ = spi_sendAndReceive8(spi, 0xFF);
 
             // read 16-bit CRC
-            spi_receive8(spi);
-            spi_receive8(spi);
+            spi_sendAndReceive8(spi, 0xFF);
+            spi_sendAndReceive8(spi, 0xFF);
         }
     }
 
@@ -458,7 +471,7 @@ uint8_t sd_writeSingleBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t *buf, uint8
         writeAttempts = 0;
         while (++writeAttempts != SD_MAX_WRITE_ATTEMPTS)
         {
-            if ((read = spi_receive8(spi)) != 0xFF)
+            if ((read = spi_sendAndReceive8(spi, 0xFF)) != 0xFF)
             {
                 *token = 0xFF;
                 break;
@@ -473,7 +486,7 @@ uint8_t sd_writeSingleBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t *buf, uint8
 
             // wait for write to finish (timeout = 250ms)
             writeAttempts = 0;
-            while (spi_receive8(spi) == 0x00)
+            while (spi_sendAndReceive8(spi, 0xFF) == 0x00)
             {
                 if (++writeAttempts == SD_MAX_WRITE_ATTEMPTS)
                 {
@@ -511,7 +524,7 @@ uint8_t sd_readMultiBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t count, uint8_
             readAttempts = 0;
             while (++readAttempts != SD_MAX_READ_ATTEMPTS)
             {
-                if ((read = spi_receive8(spi)) != 0xFF)
+                if ((read = spi_sendAndReceive8(spi, 0xFF)) != 0xFF)
                 {
                     break;
                 }
@@ -525,11 +538,11 @@ uint8_t sd_readMultiBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t count, uint8_
             {
                 // read 512 byte block
                 for (uint16_t i = 0; i < 512; i++)
-                    *buf++ = spi_receive8(spi);
+                    *buf++ = spi_sendAndReceive8(spi, 0xFF);
 
                 // read 16-bit CRC
-                spi_receive8(spi);
-                spi_receive8(spi);
+                spi_sendAndReceive8(spi, 0xFF);
+                spi_sendAndReceive8(spi, 0xFF);
             }
             else
             {
@@ -594,7 +607,7 @@ uint8_t sd_writeMultiBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t count, uint8
             writeAttempts = 0;
             while (++writeAttempts != SD_MAX_WRITE_ATTEMPTS)
             {
-                read = spi_receive8(spi);
+                read = spi_sendAndReceive8(spi, 0xFF);
                 if (read != 0xFF)
                 {
                     *token = 0xFF;
@@ -610,7 +623,7 @@ uint8_t sd_writeMultiBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t count, uint8
 
                 // wait for write to finish (timeout = 250ms)
                 writeAttempts = 0;
-                while (spi_receive8(spi) == 0x00)
+                while (spi_sendAndReceive8(spi, 0xFF) == 0x00)
                 {
                     if (++writeAttempts == SD_MAX_WRITE_ATTEMPTS)
                     {
@@ -629,7 +642,7 @@ uint8_t sd_writeMultiBlock(SPI_TypeDef *spi, uint32_t addr, uint8_t count, uint8
         spi_send8(spi, SD_STOP_TRAN_TOKEN);
         // wait for write to finish (timeout = 250ms)
         writeAttempts = 0;
-        while (spi_receive8(spi) != 0xFF)
+        while (spi_sendAndReceive8(spi, 0xFF) != 0xFF)
         {
             if (++writeAttempts == SD_MAX_WRITE_ATTEMPTS)
             {

@@ -94,6 +94,7 @@ void spi_send8(SPI_TypeDef *spi, uint8_t data);
 void spi_send16(SPI_TypeDef *spi, uint16_t data);
 void spi_send32(SPI_TypeDef *spi, uint32_t data);
 uint8_t spi_receive8(SPI_TypeDef *spi);
+uint8_t spi_sendAndReceive8(SPI_TypeDef *spi, uint8_t data);
 void sd_sendCmd(SPI_TypeDef *spi, uint8_t cmd, uint32_t arg, uint8_t crc);
 uint8_t sd_readRes1(SPI_TypeDef *spi);
 uint8_t sd_readRes1b(SPI_TypeDef *spi);
